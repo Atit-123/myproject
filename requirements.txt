@@ -1,6 +1,5 @@
-Flask==2.0.1
-Werkzeug==2.0.1
-Jinja2==3.0.1
-gunicorn
-flask-cors
-
+Flask==2.3.4
+flask-cors==4.0.1
+gunicorn==21.2.0
+google-generativeai==0.4.0
+Werkzeug==2.3.4
