@@ -1,5 +1,5 @@
 Flask==3.1.2
-Flask-Cors
-google-generativeai
-gunicorn
-
+Flask-Cors==4.0.1
+google-generativeai==0.4.0
+gunicorn==21.2.0
+Werkzeug==3.1.2
