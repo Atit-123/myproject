@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Geoclean Feed</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    body {
+      font-family: "Inter", sans-serif;
+      background: #f9fafb;
+    }
+    /* Smooth image scaling on hover */
+    .post-image {
+      transition: transform 0.3s ease;
+    }
+    .post-card:hover .post-image {
+      transform: scale(1.05);
+    }
+    /* Filter buttons styling */
+    .filter-btn[aria-selected="true"] {
+      box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-6">
+
+  <header
+    class="max-w-6xl mx-auto bg-white shadow-md rounded-lg flex justify-between items-center px-6 py-4 mb-6"
+  >
+    <h1 class="text-3xl font-extrabold text-gray-900 tracking-wide select-none">
+      📜 Geoclean Feed
+    </h1>
+    <a
+      href="index.html"
+      class="inline-block bg-blue-600 text-white font-semibold px-5 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition"
+      >➕ Upload</a
+    >
+  </header>
+
+  <main class="max-w-6xl mx-auto space-y-8">
+
+    <!-- Filter buttons -->
+    <div
+      class="flex justify-center gap-6 mb-6"
+      role="tablist"
+      aria-label="Filter posts"
+    >
+      <button
+        id="btnPending"
+        role="tab"
+        aria-selected="true"
+        class="filter-btn px-7 py-3 rounded-lg bg-yellow-500 text-white font-semibold shadow-md hover:bg-yellow-600 focus:ring-4 focus:ring-yellow-300 transition"
+      >
+        🟡 Pending
+      </button>
+      <button
+        id="btnCleaned"
+        role="tab"
+        aria-selected="false"
+        class="filter-btn px-7 py-3 rounded-lg bg-green-600 text-white font-semibold shadow-md hover:bg-green-700 focus:ring-4 focus:ring-green-300 transition"
+      >
+        ✅ Cleaned
+      </button>
+    </div>
+
+    <div id="posts" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+      <p class="text-center text-gray-400 col-span-full">Loading posts...</p>
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:5000";
+    let allPosts = [];
+    let currentFilter = "pending";
+
+    async function loadPosts() {
+      const container = document.getElementById("posts");
+      container.innerHTML = `<p class="text-center text-gray-400 col-span-full">Loading posts...</p>`;
+      try {
+        const res = await fetch(`${API_BASE}/posts`);
+        allPosts = await res.json();
+        if (!allPosts.length) {
+          container.innerHTML = `<p class="text-center text-gray-400 col-span-full">No posts available.</p>`;
+          return;
+        }
+        filterPosts(currentFilter);
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = `<p class="text-center text-red-500 col-span-full">⚠️ Failed to load posts.</p>`;
+      }
+    }
+
+    function filterPosts(status) {
+      currentFilter = status;
+      const container = document.getElementById("posts");
+      container.innerHTML = "";
+
+      // Update aria-selected for buttons
+      document.getElementById("btnPending").setAttribute("aria-selected", status === "pending");
+      document.getElementById("btnCleaned").setAttribute("aria-selected", status === "Cleaned");
+
+      const filtered = allPosts.filter((p) => p.status === status);
+      if (filtered.length === 0) {
+        container.innerHTML = `<p class="text-center text-gray-400 col-span-full">No ${status} posts.</p>`;
+        return;
+      }
+
+      filtered.forEach((post) => {
+        const safe = (v) => v ?? "";
+        const locationText =
+          [safe(post.town), safe(post.state)]
+            .filter(Boolean)
+            .join(", ") +
+          (post.lat && post.lon ? ` (${post.lat},${post.lon})` : "");
+        const card = document.createElement("article");
+        card.className =
+          "post-card bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col";
+
+        card.innerHTML = `
+          <img
+            src="${safe(post.photo_url) || "https://via.placeholder.com/600x400?text=No+Image"}"
+            alt="Post Image"
+            class="post-image w-full h-48 object-cover"
+            onerror="this.onerror=null;this.src='https://via.placeholder.com/600x400?text=No+Image';"
+          />
+          <div class="p-5 flex flex-col flex-grow">
+            <header class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900">${safe(post.name)}</h2>
+                <p class="text-xs text-gray-500 break-all">${safe(post.email)}</p>
+              </div>
+              <p class="text-xs text-gray-500 whitespace-nowrap">
+                📍 ${locationText}
+              </p>
+            </header>
+            <p class="inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+              status === "pending"
+                ? "bg-yellow-200 text-yellow-800"
+                : "bg-green-200 text-green-800"
+            } self-start mb-3">
+              ${
+                status === "pending"
+                  ? "🟡 Pending"
+                  : "✅ Cleaned"
+              }
+            </p>
+            <p class="text-gray-700 flex-grow">${safe(post.caption)}</p>
+            <p class="text-xs text-blue-600 mt-4 italic font-medium">🧹 AI Description: ${safe(post.ai_description)}</p>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // Setup filter buttons event handlers
+    document.getElementById("btnPending").onclick = () => filterPosts("pending");
+    document.getElementById("btnCleaned").onclick = () => filterPosts("complete");
+
+    loadPosts();
+  </script>
+</body>
+</html>

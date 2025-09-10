@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Geoclean Manage Posts</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body {
+    font-family: 'Inter', sans-serif;
+  }
+  /* For tab-like filter buttons */
+  .filter-btn[aria-selected="true"] {
+    box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
+  }
+</style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+
+<!-- Login container -->
+<div id="loginContainer" class="max-w-sm mx-auto mt-20 bg-white p-8 rounded-lg shadow-md">
+  <h1 class="text-2xl font-bold mb-6 text-center">Login to Manage Posts</h1>
+  <form id="loginForm" class="space-y-4">
+    <div>
+      <label for="login" class="block text-gray-700 font-semibold mb-1">Username</label>
+      <input type="text" id="login" name="login" class="w-full border border-gray-300 rounded-md p-2" required />
+    </div>
+    <div>
+      <label for="password" class="block text-gray-700 font-semibold mb-1">Password</label>
+      <input type="password" id="password" name="password" class="w-full border border-gray-300 rounded-md p-2" required />
+    </div>
+    <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700">Login</button>
+    <p id="errorMsg" class="text-red-500 mt-2 hidden"></p>
+  </form>
+</div>
+
+<!-- Manage posts container - initially hidden -->
+<div id="manageContainer" class="hidden">
+
+  <header
+    class="bg-white shadow-md p-5 rounded-lg mb-8 flex justify-between items-center max-w-6xl mx-auto"
+  >
+    <div class="flex items-center gap-3">
+      <span class="text-3xl select-none" aria-hidden="true">⚙️</span>
+      <h1 class="text-3xl font-extrabold text-gray-900 select-none">Manage Posts</h1>
+    </div>
+    <div class="flex items-center gap-3">
+      <button
+        id="btnRefresh"
+        title="Refresh posts"
+        class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-md transition focus:outline-none focus:ring-2 focus:ring-blue-400"
+      >
+        🔄 Refresh
+      </button>
+      <button
+        id="btnLogout"
+        title="Logout"
+        class="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow-md transition focus:outline-none focus:ring-2 focus:ring-red-400"
+      >
+        🚪 Logout
+      </button>
+      <a
+        href="feed.html"
+        class="inline-flex items-center gap-2 bg-gray-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-gray-700 transition font-semibold"
+      >
+        📜 Feed
+      </a>
+    </div>
+  </header>
+
+  <div
+    class="max-w-6xl mx-auto flex justify-center gap-6 mb-10"
+    role="tablist"
+    aria-label="Filter posts"
+  >
+    <button
+      id="btnPending"
+      role="tab"
+      aria-selected="true"
+      class="filter-btn px-7 py-3 rounded-lg bg-yellow-500 text-white font-semibold shadow-md hover:bg-yellow-600 focus:ring-4 focus:ring-yellow-300 transition"
+    >
+      🟡 Pending
+    </button>
+    <button
+      id="btnCompleted"
+      role="tab"
+      aria-selected="false"
+      class="filter-btn px-7 py-3 rounded-lg bg-green-600 text-white font-semibold shadow-md hover:bg-green-700 focus:ring-4 focus:ring-green-300 transition"
+    >
+      ✅ Completed
+    </button>
+    <button
+      id="btnWasteDetected"
+      role="tab"
+      aria-selected="false"
+      class="filter-btn px-7 py-3 rounded-lg bg-red-600 text-white font-semibold shadow-md hover:bg-red-700 focus:ring-4 focus:ring-red-300 transition"
+    >
+      🚮 Waste Detected
+    </button>
+    <button
+      id="btnWasteNotDetected"
+      role="tab"
+      aria-selected="false"
+      class="filter-btn px-7 py-3 rounded-lg bg-blue-600 text-white font-semibold shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition"
+    >
+      ✅ No Waste Detected
+    </button>
+  </div>
+
+  <div id="posts" class="max-w-5xl mx-auto space-y-6"></div>
+
+</div>
+
+<script>
+  const API_BASE = "http://127.0.0.1:5000";
+  let allPosts = [];
+  let currentFilter = "pending";
+
+  // Login elements
+  const loginContainer = document.getElementById("loginContainer");
+  const manageContainer = document.getElementById("manageContainer");
+  const loginForm = document.getElementById("loginForm");
+  const errorMsg = document.getElementById("errorMsg");
+
+  // Login form submit handler
+  loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const login = loginForm.login.value.trim();
+    const password = loginForm.password.value;
+
+    if (login === "Atit" && password === "123456") {
+      // Hide login, show manage page
+      loginContainer.classList.add("hidden");
+      manageContainer.classList.remove("hidden");
+      errorMsg.classList.add("hidden");
+      loadPosts();
+    } else {
+      errorMsg.textContent = "Invalid username or password.";
+      errorMsg.classList.remove("hidden");
+    }
+  });
+
+  async function loadPosts() {
+    const container = document.getElementById("posts");
+    container.innerHTML = `<p class="text-center text-gray-500">Loading posts...</p>`;
+    try {
+      const res = await fetch(`${API_BASE}/posts`);
+      allPosts = await res.json();
+      filterPosts(currentFilter);
+    } catch (err) {
+      console.error(err);
+      container.innerHTML = `<p class="text-center text-red-500">Failed to load posts.</p>`;
+    }
+  }
+
+  function filterPosts(filter) {
+    currentFilter = filter;
+    const container = document.getElementById("posts");
+    container.innerHTML = "";
+
+    // Update aria-selected for all 4 buttons
+    document.getElementById("btnPending").setAttribute("aria-selected", filter === "pending");
+    document.getElementById("btnCompleted").setAttribute("aria-selected", filter === "complete");
+    document.getElementById("btnWasteDetected").setAttribute("aria-selected", filter === "waste_detected");
+    document.getElementById("btnWasteNotDetected").setAttribute("aria-selected", filter === "waste_not_detected");
+
+    // Filter posts based on filter type
+    let filtered = [];
+
+    if (filter === "pending") {
+      filtered = allPosts.filter(p => p.status === "pending");
+    } else if (filter === "complete") {
+      filtered = allPosts.filter(p => p.status === "complete");
+    } else if (filter === "waste_detected") {
+      filtered = allPosts.filter(p => {
+        if (!p.ai_description) return false;
+        const desc = p.ai_description.toLowerCase();
+        return desc.includes("waste is detected") && !desc.includes("no waste is detected");
+      });
+    } else if (filter === "waste_not_detected") {
+      filtered = allPosts.filter(p => {
+        if (!p.ai_description) return false;
+        return p.ai_description.toLowerCase().includes("no waste is detected");
+      });
+    }
+
+    if (filtered.length === 0) {
+      container.innerHTML = `<p class="text-center text-gray-500">No posts for "${filter}".</p>`;
+      return;
+    }
+
+    filtered.forEach((post) => {
+      const safe = (v) => v ?? "";
+      const locationText =
+        [safe(post.town), safe(post.state)].filter(Boolean).join(", ") +
+        (post.lat && post.lon ? ` (${post.lat},${post.lon})` : "");
+
+      // Waste status text logic
+      let wasteText = "";
+      if (post.ai_description) {
+        const descLower = post.ai_description.toLowerCase();
+        if (descLower.includes("no waste is detected")) {
+          wasteText = `<p class="text-blue-700 font-semibold flex items-center gap-1">
+                        🧹 AI Description: ${safe(post.ai_description)}
+                      </p>
+                      <p class="text-blue-600 font-bold">✅ No waste detected.</p>`;
+        } else if (descLower.includes("waste is detected")) {
+          wasteText = `<p class="text-blue-700 font-semibold flex items-center gap-1">
+                        🧹 AI Description: ${safe(post.ai_description)}
+                      </p>
+                      <p class="text-red-700 font-bold">🚮 Waste is detected.</p>`;
+        } else {
+          wasteText = `<p class="text-blue-700 font-semibold flex items-center gap-1">
+                        🧹 AI Description: ${safe(post.ai_description)}
+                      </p>`;
+        }
+      }
+
+      const card = document.createElement("div");
+      card.className = "bg-white rounded-xl shadow-md overflow-hidden";
+
+      card.innerHTML = `
+        <div class="p-4 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="font-semibold text-gray-800">${safe(post.name)}</p>
+            <p class="text-xs text-gray-500 break-all">${safe(post.email)}</p>
+          </div>
+          <p class="text-xs text-gray-500 mt-2 sm:mt-0">📍 ${locationText}</p>
+        </div>
+        <img src="${safe(post.photo_url) || 'https://via.placeholder.com/800x400?text=No+Image'}"
+             class="w-full object-cover max-h-96"
+             onerror="this.onerror=null;this.src='https://via.placeholder.com/800x400?text=No+Image';"/>
+        <div class="p-4">
+          <p class="text-sm font-semibold ${
+            post.status === "pending" ? "text-yellow-600" : "text-green-600"
+          }">
+            ${post.status === "pending" ? "🟡 Pending" : "✅ Completed"}
+          </p>
+          <p class="text-gray-700 mt-2"><span class="font-semibold">${safe(post.name)}</span>: ${safe(post.caption)}</p>
+          ${wasteText}
+        </div>
+      `;
+
+      // Buttons container for alignment
+      const btnContainer = document.createElement("div");
+      btnContainer.className = "flex gap-4 p-4";
+
+      // Mark as completed button (only if pending)
+      if (post.status === "pending") {
+        const btn = document.createElement("button");
+        btn.textContent = "Mark as Completed ✅";
+        btn.className = "px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition";
+        btn.onclick = async () => {
+          try {
+            await fetch(`${API_BASE}/update_status/${post.id}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "complete" }),
+            });
+            loadPosts();
+          } catch (e) {
+            alert("Failed to update status.");
+          }
+        };
+        btnContainer.appendChild(btn);
+      }
+
+      // Delete button
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "Delete ❌";
+      delBtn.className = "px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition";
+      delBtn.onclick = async () => {
+        if (confirm("Are you sure to delete this post?")) {
+          try {
+            await fetch(`${API_BASE}/delete_post/${post.id}`, { method: "DELETE" });
+            loadPosts();
+          } catch (e) {
+            alert("Failed to delete post.");
+          }
+        }
+      };
+      btnContainer.appendChild(delBtn);
+
+      card.appendChild(btnContainer);
+      container.appendChild(card);
+    });
+  }
+
+  // Filter buttons event handlers
+  document.getElementById("btnPending").onclick = () => filterPosts("pending");
+  document.getElementById("btnCompleted").onclick = () => filterPosts("complete");
+  document.getElementById("btnWasteDetected").onclick = () => filterPosts("waste_detected");
+  document.getElementById("btnWasteNotDetected").onclick = () => filterPosts("waste_not_detected");
+
+  // Refresh button reloads posts
+  document.getElementById("btnRefresh").onclick = () => loadPosts();
+
+  // Logout button resets UI
+  document.getElementById("btnLogout").onclick = () => {
+    manageContainer.classList.add("hidden");
+    loginContainer.classList.remove("hidden");
+    loginForm.reset();
+    errorMsg.classList.add("hidden");
+    allPosts = [];
+    currentFilter = "pending";
+  };
+
+  // Do NOT load posts before login!
+  // loadPosts();
+</script>
+
+</body>
+</html>

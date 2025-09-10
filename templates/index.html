@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Geoclean - Photo Uploader</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  body {
+    font-family: "Inter", sans-serif;
+  }
+</style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-lg bg-white p-6 rounded-xl shadow-lg">
+    <div
+      id="messageBox"
+      class="hidden mb-4 p-3 rounded-lg text-center font-semibold"
+    ></div>
+
+    <h1 class="text-4xl font-bold text-gray-800 mb-2">🌍 Geoclean</h1>
+    <p class="text-sm text-gray-500 mb-6">
+      Upload images, add your Name, Caption & Email, get GPS location, and save
+      them to the database.
+    </p>
+
+    <div class="mb-4">
+      <label
+        for="userName"
+        class="block text-left text-gray-700 font-medium mb-1"
+        >Your Name</label
+      >
+      <input
+        id="userName"
+        type="text"
+        placeholder="Enter Your Name"
+        class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+
+    <div class="mb-4">
+      <label
+        for="userEmail"
+        class="block text-left text-gray-700 font-medium mb-1"
+        >Your Email</label
+      >
+      <input
+        id="userEmail"
+        type="email"
+        placeholder="Enter Your Email"
+        class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+
+    <div class="mb-4">
+      <label
+        for="userCaption"
+        class="block text-left text-gray-700 font-medium mb-1"
+        >Caption</label
+      >
+      <textarea
+        id="userCaption"
+        placeholder="Enter Caption"
+        class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 h-28 resize-y"
+      ></textarea>
+    </div>
+
+    <div class="mb-4">
+      <label
+        for="file-input"
+        class="block text-left text-gray-700 font-medium mb-1"
+        >Upload Photos</label
+      >
+      <input
+        id="file-input"
+        type="file"
+        accept="image/*"
+        multiple
+        capture="environment"
+        class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+      />
+    </div>
+
+    <button
+      id="submitBtn"
+      class="w-full bg-green-500 text-white font-bold py-3 rounded-lg shadow-md hover:bg-green-600 transition duration-300 ease-in-out transform hover:scale-105"
+    >
+      Submit
+    </button>
+
+    <button
+      id="getInBtn"
+      class="w-full bg-blue-500 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-600 transition duration-300 ease-in-out transform hover:scale-105 mt-2"
+    >
+      Get In
+    </button>
+
+    <!-- Added Login Button Here -->
+    <button
+      onclick="window.location.href='manage.html'"
+      class="w-full bg-gray-800 text-white font-bold py-3 rounded-lg shadow-md hover:bg-gray-900 transition duration-300 ease-in-out transform hover:scale-105 mt-2"
+    >
+      🔐 Login
+    </button>
+
+    <p
+      id="location"
+      class="text-sm text-gray-600 mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200"
+    >
+      📍 Location not retrieved yet.
+    </p>
+
+    <div id="grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-6"></div>
+  </div>
+
+  <script>
+    const locationOutput = document.getElementById("location");
+    const messageBox = document.getElementById("messageBox");
+    const submitBtn = document.getElementById("submitBtn");
+    let currentLat = null,
+      currentLon = null,
+      currentTown = null,
+      currentArea = null,
+      currentState = null;
+
+    // Show messages
+    function showMessage(message, type) {
+      messageBox.textContent = message;
+      messageBox.classList.remove(
+        "hidden",
+        "bg-green-100",
+        "text-green-700",
+        "bg-red-100",
+        "text-red-700",
+        "bg-blue-100",
+        "text-blue-700"
+      );
+      if (type === "error") {
+        messageBox.classList.add("bg-red-100", "text-red-700");
+      } else if (type === "success") {
+        messageBox.classList.add("bg-green-100", "text-green-700");
+      } else {
+        messageBox.classList.add("bg-blue-100", "text-blue-700");
+      }
+      setTimeout(() => {
+        messageBox.classList.add("hidden");
+      }, 5000);
+    }
+
+    // Get GPS Location
+    function getLocation() {
+      if (navigator.geolocation) {
+        showMessage("Retrieving location...", "info");
+        navigator.geolocation.getCurrentPosition(
+          async function (position) {
+            const lat = position.coords.latitude.toFixed(6);
+            const lon = position.coords.longitude.toFixed(6);
+            try {
+              const response = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
+              );
+              const data = await response.json();
+              let town =
+                data.address.city ||
+                data.address.town ||
+                data.address.village ||
+                data.address.hamlet ||
+                "Unknown place";
+              let area =
+                data.address.suburb ||
+                data.address.neighbourhood ||
+                data.address.locality ||
+                "Unknown area";
+              let state = data.address.state || "Unknown state";
+              currentLat = lat;
+              currentLon = lon;
+              currentTown = town;
+              currentArea = area;
+              currentState = state;
+              locationOutput.innerHTML = `
+                <div class="text-left">
+                  📍 You are in: <strong class="text-gray-800">${town}</strong><br>
+                  🏠 Area: <span class="text-gray-800">${area}</span><br>
+                  🏛️ State: <span class="text-gray-800">${state}</span><br>
+                  🌍 Coordinates: <span class="text-gray-600">${lat}, ${lon}</span><br>
+                  <a href="https://www.google.com/maps/place/${lat},${lon}" target="_blank" class="text-blue-500 hover:text-blue-700 font-semibold mt-2 inline-block">View on Map</a>
+                </div>`;
+              showMessage("Location retrieved successfully.", "success");
+            } catch (err) {
+              locationOutput.textContent = "⚠️ Failed to fetch place name.";
+              console.error(err);
+              showMessage("⚠️ Failed to fetch place name.", "error");
+            }
+          },
+          function (error) {
+            locationOutput.textContent =
+              "⚠️ Unable to retrieve location: " + error.message;
+            console.error(error);
+            showMessage("⚠️ Unable to retrieve location.", "error");
+          }
+        );
+      } else {
+        locationOutput.textContent =
+          "❌ Geolocation is not supported by this browser.";
+        showMessage("❌ Geolocation is not supported by this browser.", "error");
+      }
+    }
+    getLocation();
+
+    // Show previews
+    const fileInput = document.getElementById("file-input");
+    const grid = document.getElementById("grid");
+    fileInput.addEventListener("change", () => {
+      grid.innerHTML = "";
+      [...fileInput.files].forEach((file) => {
+        const card = document.createElement("div");
+        card.className =
+          "flex flex-col items-center bg-gray-50 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300";
+        const img = document.createElement("img");
+        img.className = "w-full h-24 object-cover";
+        img.src = URL.createObjectURL(file);
+        const caption = document.createElement("p");
+        caption.className =
+          "text-xs p-2 text-gray-600 text-center truncate w-full";
+        caption.textContent = file.name;
+        card.appendChild(img);
+        card.appendChild(caption);
+        grid.appendChild(card);
+      });
+    });
+
+    // Handle Submit
+    submitBtn.addEventListener("click", async () => {
+      const files = fileInput.files;
+      const name = document.getElementById("userName").value.trim();
+      const email = document.getElementById("userEmail").value.trim();
+      const caption = document.getElementById("userCaption").value.trim();
+
+      if (!name || !email || !caption) {
+        showMessage("⚠️ Please fill in all fields.", "error");
+        return;
+      }
+      if (files.length === 0) {
+        showMessage("⚠️ Please upload at least one photo.", "error");
+        return;
+      }
+      if (!currentTown) {
+        showMessage(
+          "⚠️ Location not available yet. Please allow GPS access.",
+          "error"
+        );
+        return;
+      }
+
+      const formData = new FormData();
+      for (let file of files) formData.append("photos", file);
+      formData.append("name", name);
+      formData.append("email", email);
+      formData.append("caption", caption);
+      formData.append("town", currentTown);
+      formData.append("area", currentArea);
+      formData.append("state", currentState);
+      formData.append("lat", currentLat);
+      formData.append("lon", currentLon);
+
+      try {
+        submitBtn.disabled = true;
+        showMessage("Uploading...", "info");
+        const res = await fetch("http://127.0.0.1:5000/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        console.log("Server Response:", data);
+        if (data.message && data.message.includes("successful")) {
+          showMessage("✅ Submitted and saved to database!", "success");
+          // Clear form
+          document.getElementById("userName").value = "";
+          document.getElementById("userEmail").value = "";
+          document.getElementById("userCaption").value = "";
+          fileInput.value = "";
+          grid.innerHTML = "";
+        } else {
+          showMessage(`❌ Upload failed: ${data.error || "Unknown error"}`, "error");
+        }
+      } catch (err) {
+        console.error("Upload failed", err);
+        showMessage("❌ Upload failed. Please check backend.", "error");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    // Get In → feed.html
+    document.getElementById("getInBtn").addEventListener("click", () => {
+      window.location.href = "feed.html";
+    });
+  </script>
+</body>
+</html>
