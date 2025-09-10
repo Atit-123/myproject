@@ -1,13 +1,11 @@
 import os
 import sqlite3
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import google.generativeai as genai
 
 # --- Configuration ---
-
-# Hardcoded API key fallback - for testing only (replace with your own key or use env variable)
 api_key = os.getenv("GOOGLE_GENAI_API_KEY", "AIzaSyCeQxTrf6cShJOdHkAuwufCow4sb3Bg8u4")
 if not api_key:
     raise Exception("Please set the GOOGLE_GENAI_API_KEY environment variable")
@@ -49,6 +47,19 @@ def init_db():
 
 init_db()
 
+# --- HTML Routes ---
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+@app.route("/feed")
+def feed():
+    return render_template("feed.html")
+
+@app.route("/manage")
+def manage():
+    return render_template("manage.html")
+
 # --- Upload endpoint ---
 @app.route("/upload", methods=["POST"])
 def upload_file():
@@ -75,13 +86,9 @@ def upload_file():
                 with open(path, "rb") as f:
                     image_bytes = f.read()
 
-                # Gemini 2 expects prompt + image input as a dict
                 response = model.generate_content([
-                    "Waste is detect or not detected (ex in the image there is no any waste is detected)in one line.",
-                    {
-                        "mime_type": "image/jpeg",
-                        "data": image_bytes
-                    }
+                    "Waste is detect or not detected (ex in the image there is no any waste is detected) in one line.",
+                    {"mime_type": "image/jpeg", "data": image_bytes}
                 ])
 
                 ai_description = response.text.strip()
