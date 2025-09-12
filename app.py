@@ -11,15 +11,15 @@ if not api_key:
     raise Exception("Please set the GOOGLE_GENAI_API_KEY environment variable")
 
 genai.configure(api_key=api_key)
-
 model = genai.GenerativeModel("gemini-1.5-flash")
+
 UPLOAD_FOLDER = "uploads"
 DATABASE = "geoclean.db"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # --- Initialize Flask app ---
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app, supports_credentials=True, methods=["GET", "POST", "DELETE"])
 
 # --- Initialize DB ---
@@ -52,13 +52,13 @@ init_db()
 def home():
     return render_template("index.html")
 
-@app.route("/feed")
-def feed():
-    return render_template("feed.html")
-
 @app.route("/manage")
 def manage():
     return render_template("manage.html")
+
+@app.route("/feed")
+def feed():
+    return render_template("feed.html")
 
 # --- Upload endpoint ---
 @app.route("/upload", methods=["POST"])
@@ -88,7 +88,10 @@ def upload_file():
 
                 response = model.generate_content([
                     "Waste is detect or not detected (ex in the image there is no any waste is detected) in one line.",
-                    {"mime_type": "image/jpeg", "data": image_bytes}
+                    {
+                        "mime_type": "image/jpeg",
+                        "data": image_bytes
+                    }
                 ])
 
                 ai_description = response.text.strip()
@@ -176,6 +179,11 @@ def delete_post(id):
 @app.route("/uploads/<filename>")
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
+
+# --- Optional: Serve favicon ---
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory(os.path.join(app.static_folder), "favicon.ico")
 
 if __name__ == "__main__":
     app.run(debug=True)
