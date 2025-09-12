@@ -6,23 +6,28 @@ from werkzeug.utils import secure_filename
 import google.generativeai as genai
 
 # --- Configuration ---
-api_key = os.getenv("GOOGLE_GENAI_API_KEY", "AIzaSyCeQxTrf6cShJOdHkAuwufCow4sb3Bg8u4")
+api_key = os.getenv("GOOGLE_GENAI_API_KEY", "YOUR_API_KEY_HERE")
 if not api_key:
     raise Exception("Please set the GOOGLE_GENAI_API_KEY environment variable")
 
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-UPLOAD_FOLDER = "uploads"
-DATABASE = "geoclean.db"
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+DATABASE = os.path.join(BASE_DIR, "geoclean.db")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # --- Initialize Flask app ---
-app = Flask(__name__, template_folder="templates", static_folder="static")
+app = Flask(
+    __name__,
+    template_folder="templates",
+    static_folder="static"
+)
 CORS(app, supports_credentials=True, methods=["GET", "POST", "DELETE"])
 
-# --- Initialize DB ---
+# --- Initialize Database ---
 def init_db():
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -87,13 +92,12 @@ def upload_file():
                     image_bytes = f.read()
 
                 response = model.generate_content([
-                    "Waste is detect or not detected (ex in the image there is no any waste is detected) in one line.",
+                    "Detect waste in the image and give one-line description.",
                     {
                         "mime_type": "image/jpeg",
                         "data": image_bytes
                     }
                 ])
-
                 ai_description = response.text.strip()
             except Exception as e:
                 print("AI error:", e)
@@ -112,7 +116,6 @@ def upload_file():
             results.append({"filename": filename, "ai_description": ai_description})
 
         return jsonify({"message": "Upload successful!", "results": results})
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -185,5 +188,6 @@ def uploaded_file(filename):
 def favicon():
     return send_from_directory(os.path.join(app.static_folder), "favicon.ico")
 
+# --- Run server ---
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
