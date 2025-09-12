@@ -93,7 +93,7 @@ def upload_file():
                     image_bytes = f.read()
 
                 response = model.generate_content([
-                    "Detect waste in the image and give one-line description.",
+                    "Detect waste in the image and give Waste Detected or No Waste Detected.",
                     {
                         "mime_type": "image/jpeg",
                         "data": image_bytes
@@ -192,5 +192,6 @@ def favicon():
 # --- Run server ---
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
 
 
