@@ -6,7 +6,9 @@ from werkzeug.utils import secure_filename
 import google.generativeai as genai
 
 # --- Configuration ---
-api_key = os.getenv("GOOGLE_GENAI_API_KEY", "YOUR_API_KEY_HERE")
+api_key = os.getenv("GOOGLE_GENAI_API_KEY", ""AIzaSyCeQxTrf6cShJOdHkAuwufCow4sb3Bg8u4")
+if not api_key:
+
 if not api_key:
     raise Exception("Please set the GOOGLE_GENAI_API_KEY environment variable")
 
@@ -191,3 +193,4 @@ def favicon():
 # --- Run server ---
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
