@@ -1,168 +1,155 @@
 <!DOCTYPE html>
-<html lang="en" >
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Geoclean Feed</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
-    rel="stylesheet"
-  />
-  <style>
-    body {
-      font-family: "Inter", sans-serif;
-      background: #f9fafb;
-    }
-    /* Smooth image scaling on hover */
-    .post-image {
-      transition: transform 0.3s ease;
-    }
-    .post-card:hover .post-image {
-      transform: scale(1.05);
-    }
-    /* Filter buttons styling */
-    .filter-btn[aria-selected="true"] {
-      box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
-      font-weight: 700;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Geoclean - Photo Uploader</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>body { font-family: "Inter", sans-serif; }</style>
 </head>
-<body class="min-h-screen p-6">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-lg bg-white p-6 rounded-xl shadow-lg">
+    <div id="messageBox" class="hidden mb-4 p-3 rounded-lg text-center font-semibold"></div>
 
-  <header
-    class="max-w-6xl mx-auto bg-white shadow-md rounded-lg flex justify-between items-center px-6 py-4 mb-6"
-  >
-    <h1 class="text-3xl font-extrabold text-gray-900 tracking-wide select-none">
-      📜 Geoclean Feed
-    </h1>
-    <a
-      href="index.html"
-      class="inline-block bg-blue-600 text-white font-semibold px-5 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition"
-      >➕ Upload</a
-    >
-  </header>
+    <h1 class="text-4xl font-bold text-gray-800 mb-2">🌍 Geoclean</h1>
+    <p class="text-sm text-gray-500 mb-6">
+      Upload images, add Name, Caption & Email, get GPS location, and save them.
+    </p>
 
-  <main class="max-w-6xl mx-auto space-y-8">
-
-    <!-- Filter buttons -->
-    <div
-      class="flex justify-center gap-6 mb-6"
-      role="tablist"
-      aria-label="Filter posts"
-    >
-      <button
-        id="btnPending"
-        role="tab"
-        aria-selected="true"
-        class="filter-btn px-7 py-3 rounded-lg bg-yellow-500 text-white font-semibold shadow-md hover:bg-yellow-600 focus:ring-4 focus:ring-yellow-300 transition"
-      >
-        🟡 Pending
-      </button>
-      <button
-        id="btnCleaned"
-        role="tab"
-        aria-selected="false"
-        class="filter-btn px-7 py-3 rounded-lg bg-green-600 text-white font-semibold shadow-md hover:bg-green-700 focus:ring-4 focus:ring-green-300 transition"
-      >
-        ✅ Cleaned
-      </button>
+    <div class="mb-4">
+      <label for="userName" class="block text-left text-gray-700 font-medium mb-1">Your Name</label>
+      <input id="userName" type="text" placeholder="Enter Your Name" class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
     </div>
 
-    <div id="posts" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-      <p class="text-center text-gray-400 col-span-full">Loading posts...</p>
+    <div class="mb-4">
+      <label for="userEmail" class="block text-left text-gray-700 font-medium mb-1">Your Email</label>
+      <input id="userEmail" type="email" placeholder="Enter Your Email" class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
     </div>
-  </main>
+
+    <div class="mb-4">
+      <label for="userCaption" class="block text-left text-gray-700 font-medium mb-1">Caption</label>
+      <textarea id="userCaption" placeholder="Enter Caption" class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 h-28 resize-y"></textarea>
+    </div>
+
+    <div class="mb-4">
+      <label for="file-input" class="block text-left text-gray-700 font-medium mb-1">Upload Photos</label>
+      <input id="file-input" type="file" accept="image/*" multiple capture="environment" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
+    </div>
+
+    <button id="submitBtn" class="w-full bg-green-500 text-white font-bold py-3 rounded-lg shadow-md hover:bg-green-600 transition duration-300 ease-in-out transform hover:scale-105">
+      Submit
+    </button>
+
+    <button id="getInBtn" class="w-full bg-blue-500 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-600 transition duration-300 ease-in-out transform hover:scale-105 mt-2">
+      Get In
+    </button>
+
+    <p id="location" class="text-sm text-gray-600 mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+      📍 Location not retrieved yet.
+    </p>
+
+    <div id="grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-6"></div>
+  </div>
 
   <script>
-    const API_BASE = "http://127.0.0.1:5000";
-    let allPosts = [];
-    let currentFilter = "pending";
+    const locationOutput = document.getElementById("location");
+    const messageBox = document.getElementById("messageBox");
+    const submitBtn = document.getElementById("submitBtn");
+    const fileInput = document.getElementById("file-input");
+    const grid = document.getElementById("grid");
+    let currentLat, currentLon, currentTown, currentArea, currentState;
 
-    async function loadPosts() {
-      const container = document.getElementById("posts");
-      container.innerHTML = `<p class="text-center text-gray-400 col-span-full">Loading posts...</p>`;
-      try {
-        const res = await fetch(`${API_BASE}/posts`);
-        allPosts = await res.json();
-        if (!allPosts.length) {
-          container.innerHTML = `<p class="text-center text-gray-400 col-span-full">No posts available.</p>`;
-          return;
-        }
-        filterPosts(currentFilter);
-      } catch (err) {
-        console.error(err);
-        container.innerHTML = `<p class="text-center text-red-500 col-span-full">⚠️ Failed to load posts.</p>`;
-      }
+    function showMessage(message, type) {
+      messageBox.textContent = message;
+      messageBox.className = "mb-4 p-3 rounded-lg text-center font-semibold";
+      if(type==="error") messageBox.classList.add("bg-red-100","text-red-700");
+      else if(type==="success") messageBox.classList.add("bg-green-100","text-green-700");
+      else messageBox.classList.add("bg-blue-100","text-blue-700");
+      setTimeout(()=>{messageBox.classList.add("hidden")},5000);
     }
 
-    function filterPosts(status) {
-      currentFilter = status;
-      const container = document.getElementById("posts");
-      container.innerHTML = "";
+    function getLocation() {
+      if(navigator.geolocation){
+        showMessage("Retrieving location...","info");
+        navigator.geolocation.getCurrentPosition(async (pos)=>{
+          const lat=pos.coords.latitude.toFixed(6);
+          const lon=pos.coords.longitude.toFixed(6);
+          try{
+            const res=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+            const data=await res.json();
+            currentLat=lat;
+            currentLon=lon;
+            currentTown=data.address.city||data.address.town||data.address.village||"Unknown";
+            currentArea=data.address.suburb||data.address.neighbourhood||data.address.locality||"Unknown";
+            currentState=data.address.state||"Unknown";
+            locationOutput.innerHTML=`📍 ${currentTown}, ${currentArea}, ${currentState} (${lat},${lon})`;
+            showMessage("Location retrieved.","success");
+          }catch(e){
+            console.error(e);
+            showMessage("Failed to fetch place name.","error");
+          }
+        }, (err)=>{
+          console.error(err);
+          showMessage("Unable to retrieve location.","error");
+        });
+      } else showMessage("Geolocation not supported.","error");
+    }
+    getLocation();
 
-      // Update aria-selected for buttons
-      document.getElementById("btnPending").setAttribute("aria-selected", status === "pending");
-      document.getElementById("btnCleaned").setAttribute("aria-selected", status === "Cleaned");
-
-      const filtered = allPosts.filter((p) => p.status === status);
-      if (filtered.length === 0) {
-        container.innerHTML = `<p class="text-center text-gray-400 col-span-full">No ${status} posts.</p>`;
-        return;
-      }
-
-      filtered.forEach((post) => {
-        const safe = (v) => v ?? "";
-        const locationText =
-          [safe(post.town), safe(post.state)]
-            .filter(Boolean)
-            .join(", ") +
-          (post.lat && post.lon ? ` (${post.lat},${post.lon})` : "");
-        const card = document.createElement("article");
-        card.className =
-          "post-card bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col";
-
-        card.innerHTML = `
-          <img
-            src="${safe(post.photo_url) || "https://via.placeholder.com/600x400?text=No+Image"}"
-            alt="Post Image"
-            class="post-image w-full h-48 object-cover"
-            onerror="this.onerror=null;this.src='https://via.placeholder.com/600x400?text=No+Image';"
-          />
-          <div class="p-5 flex flex-col flex-grow">
-            <header class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
-              <div>
-                <h2 class="text-lg font-semibold text-gray-900">${safe(post.name)}</h2>
-                <p class="text-xs text-gray-500 break-all">${safe(post.email)}</p>
-              </div>
-              <p class="text-xs text-gray-500 whitespace-nowrap">
-                📍 ${locationText}
-              </p>
-            </header>
-            <p class="inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-              status === "pending"
-                ? "bg-yellow-200 text-yellow-800"
-                : "bg-green-200 text-green-800"
-            } self-start mb-3">
-              ${
-                status === "pending"
-                  ? "🟡 Pending"
-                  : "✅ Cleaned"
-              }
-            </p>
-            <p class="text-gray-700 flex-grow">${safe(post.caption)}</p>
-            <p class="text-xs text-blue-600 mt-4 italic font-medium">🧹 AI Description: ${safe(post.ai_description)}</p>
-          </div>
-        `;
-        container.appendChild(card);
+    fileInput.addEventListener("change",()=>{
+      grid.innerHTML="";
+      [...fileInput.files].forEach(file=>{
+        const card=document.createElement("div");
+        card.className="flex flex-col items-center bg-gray-50 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300";
+        const img=document.createElement("img");
+        img.className="w-full h-24 object-cover";
+        img.src=URL.createObjectURL(file);
+        const caption=document.createElement("p");
+        caption.className="text-xs p-2 text-gray-600 text-center truncate w-full";
+        caption.textContent=file.name;
+        card.appendChild(img);
+        card.appendChild(caption);
+        grid.appendChild(card);
       });
-    }
+    });
 
-    // Setup filter buttons event handlers
-    document.getElementById("btnPending").onclick = () => filterPosts("pending");
-    document.getElementById("btnCleaned").onclick = () => filterPosts("complete");
+    submitBtn.addEventListener("click",async()=>{
+      const name=document.getElementById("userName").value.trim();
+      const email=document.getElementById("userEmail").value.trim();
+      const caption=document.getElementById("userCaption").value.trim();
+      if(!name||!email||!caption){showMessage("Please fill all fields.","error");return;}
+      if(fileInput.files.length===0){showMessage("Upload at least one photo.","error");return;}
+      if(!currentTown){showMessage("Location not available.","error");return;}
 
-    loadPosts();
+      const formData=new FormData();
+      [...fileInput.files].forEach(f=>formData.append("photos",f));
+      formData.append("name",name);
+      formData.append("email",email);
+      formData.append("caption",caption);
+      formData.append("town",currentTown);
+      formData.append("area",currentArea);
+      formData.append("state",currentState);
+      formData.append("lat",currentLat);
+      formData.append("lon",currentLon);
+
+      try{
+        submitBtn.disabled=true;
+        showMessage("Uploading...","info");
+        const res=await fetch(`/upload`,{method:"POST",body:formData});
+        const data=await res.json();
+        if(data.message){showMessage("Submitted successfully!","success"); document.getElementById("userName").value=""; document.getElementById("userEmail").value=""; document.getElementById("userCaption").value=""; fileInput.value=""; grid.innerHTML="";}
+        else showMessage("Upload failed.","error");
+      }catch(e){console.error(e); showMessage("Upload failed.","error");}
+      finally{submitBtn.disabled=false;}
+    });
+
+    document.getElementById("getInBtn").addEventListener("click",()=>{window.location.href="feed.html";});
   </script>
 </body>
 </html>
