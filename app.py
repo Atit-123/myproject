@@ -6,7 +6,8 @@ from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from google import generativeai as genai
-from google.genai import types
+from google.generativeai import types
+
 
 # --- Configuration ---
 # WARNING: This API key is still hardcoded and public. 
@@ -260,4 +261,5 @@ def uploaded_file(filename):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
