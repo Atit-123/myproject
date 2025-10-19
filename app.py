@@ -1,34 +1,33 @@
 import os
 import sqlite3
+import uuid
+import mimetypes
 from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # --- Configuration ---
-api_key = os.getenv("GOOGLE_GENAI_API_KEY", "AIzaSyCeQxTrf6cShJOdHkAuwufCow4sb3Bg8u4")
+# WARNING: This API key is still hardcoded and public. 
+# For production, use os.getenv("GEMINI_API_KEY")
+api_key = "AIzaSyDistLgpF0uCaNkLKDqpC4Qpx3TuQFQNGg"
+
 
 if not api_key:
-    raise Exception("Please set the GOOGLE_GENAI_API_KEY environment variable")
+    raise Exception("Please set GEMINI_API_KEY environment variable")
 
-genai.configure(api_key=api_key)
-model = genai.GenerativeModel("gemini-1.5-flash")
-
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
-DATABASE = os.path.join(BASE_DIR, "geoclean.db")
+client = genai.Client(api_key=api_key)
+UPLOAD_FOLDER = "uploads"
+DATABASE = "geoclean.db"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # --- Initialize Flask app ---
-app = Flask(
-    __name__,
-    template_folder="templates",
-    static_folder="static"
-)
+app = Flask(__name__)
 CORS(app, supports_credentials=True, methods=["GET", "POST", "DELETE"])
 
-# --- Initialize Database ---
+# --- Initialize DB ---
 def init_db():
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -44,6 +43,7 @@ def init_db():
             lat REAL,
             lon REAL,
             photo TEXT,
+            clean_photo TEXT,
             status TEXT DEFAULT 'pending',
             ai_description TEXT
         )
@@ -53,18 +53,41 @@ def init_db():
 
 init_db()
 
-# --- HTML Routes ---
+# --- Helper: Save binary image ---
+def save_binary_file(file_name, data):
+    with open(file_name, "wb") as f:
+        f.write(data)
+    return file_name
+
+# --- Serve index.html ---
 @app.route("/")
-def home():
+def serve_index():
     return render_template("index.html")
 
-@app.route("/manage")
-def manage():
-    return render_template("manage.html")
+# -------------------------------------------------------------
+# --- View Reports (ADDED AND CORRECTED) ---
+@app.route("/reports")
+def view_reports():
+    """Fetches all reports to display in the reports.html template."""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        conn.row_factory = sqlite3.Row  # To access columns by name
+        c = conn.cursor()
+        
+        # Select columns for the report table
+        c.execute("SELECT name, email, town, area, state FROM posts ORDER BY id DESC")
+        
+        rows = c.fetchall()
+        reports_data = [dict(row) for row in rows]
+        
+        conn.close()
 
-@app.route("/feed")
-def feed():
-    return render_template("feed.html")
+        # NOTE: Assumes you have saved your template as "reports.html" inside the 'templates' folder.
+        return render_template("reports.html", reports=reports_data)
+        
+    except Exception as e:
+        return f"<h1>Error loading reports</h1><p>{str(e)}</p>", 500
+# -------------------------------------------------------------
 
 # --- Upload endpoint ---
 @app.route("/upload", methods=["POST"])
@@ -76,47 +99,92 @@ def upload_file():
         town = request.form.get("town")
         area = request.form.get("area")
         state = request.form.get("state")
+        
         lat = float(request.form.get("lat", 0))
         lon = float(request.form.get("lon", 0))
 
         photos = request.files.getlist("photos")
         results = []
+        
 
         for photo in photos:
-            filename = secure_filename(photo.filename)
+            # Save uploaded photo
+            filename = f"{uuid.uuid4().hex}_{secure_filename(photo.filename)}"
             path = os.path.join(UPLOAD_FOLDER, filename)
             photo.save(path)
 
-            # --- AI Image Analysis ---
-            try:
-                with open(path, "rb") as f:
-                    image_bytes = f.read()
+            # --- AI Text Analysis ---
+            with open(path, "rb") as f:
+                image_bytes = f.read()
 
-                response = model.generate_content([
-                    "Detect waste in the image and give Waste Detected or No Waste Detected.",
-                    {
-                        "mime_type": "image/jpeg",
-                        "data": image_bytes
-                    }
-                ])
-                ai_description = response.text.strip()
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[
+                        types.Content(
+                            role="user",
+                            parts=[
+                                types.Part.from_text(
+                                    text="Detect if waste/garbage is present in this photo. Answer in one short line waste_detected or waste_not_detected."
+                                ),
+                                types.Part.from_bytes(data=image_bytes, mime_type=photo.mimetype),
+                            ],
+                        )
+                    ],
+                )
+                ai_description = getattr(response, "text", "No description")
             except Exception as e:
-                print("AI error:", e)
+                print("AI analysis error:", e)
                 ai_description = "AI description not available"
+
+            # --- AI Image Generation (Clean version - CORRECTED MODEL) ---
+            clean_filename = None
+            try:
+                generate_config = types.GenerateContentConfig(response_modalities=["IMAGE"])
+                gen_response = client.models.generate_content(
+                    # FIX: Corrected model name from "gemini-2.5-flash-image" to "gemini-2.5-flash"
+                    model="gemini-2.5-flash",
+                    contents=[
+                        types.Content(
+                            role="user",
+                            parts=[
+                                types.Part.from_text(
+                                    text="Create a clean version of this place without any garbage."
+                                ),
+                                types.Part.from_bytes(data=image_bytes, mime_type=photo.mimetype),
+                            ],
+                        ),
+                    ],
+                    config=generate_config,
+                )
+
+                part = gen_response.candidates[0].content.parts[0]
+                if getattr(part, "inline_data", None) and part.inline_data.data:
+                    clean_filename = f"clean_{uuid.uuid4().hex}.png"
+                    clean_path = os.path.join(UPLOAD_FOLDER, clean_filename)
+                    save_binary_file(clean_path, part.inline_data.data)
+
+            except Exception as e:
+                print("AI image gen error:", e)
 
             # --- Save to Database ---
             conn = sqlite3.connect(DATABASE)
             c = conn.cursor()
             c.execute('''
-                INSERT INTO posts(name,email,caption,town,area,state,lat,lon,photo,status,ai_description)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?)
-            ''', (name, email, caption, town, area, state, lat, lon, filename, "pending", ai_description))
+                INSERT INTO posts(name,email,caption,town,area,state,lat,lon,photo,clean_photo,status,ai_description)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+            ''', (name, email, caption, town, area, state, lat, lon, filename, clean_filename, "pending", ai_description))
             conn.commit()
             conn.close()
 
-            results.append({"filename": filename, "ai_description": ai_description})
+            results.append({
+                "filename": filename,
+                "ai_description": ai_description,
+                "clean_photo": clean_filename
+            })
 
         return jsonify({"message": "Upload successful!", "results": results})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -135,9 +203,13 @@ def get_posts():
         for row in rows:
             post = dict(row)
             if post.get("photo"):
-                post["photo_url"] = request.host_url.rstrip("/") + "/uploads/" + post["photo"]
+                post["photo_url"] = "/uploads/" + post["photo"]
             else:
                 post["photo_url"] = None
+            if post.get("clean_photo"):
+                post["clean_photo_url"] = "/uploads/" + post["clean_photo"]
+            else:
+                post["clean_photo_url"] = None
             posts.append(post)
         return jsonify(posts)
     except Exception as e:
@@ -148,7 +220,7 @@ def get_posts():
 def update_status(id):
     data = request.get_json()
     status = data.get("status", "pending")
-    if status not in ["pending", "complete"]:
+    if status not in ["pending", "in progress", "complete"]:
         status = "pending"
     try:
         conn = sqlite3.connect(DATABASE)
@@ -166,12 +238,14 @@ def delete_post(id):
     try:
         conn = sqlite3.connect(DATABASE)
         c = conn.cursor()
-        c.execute("SELECT photo FROM posts WHERE id=?", (id,))
+        c.execute("SELECT photo, clean_photo FROM posts WHERE id=?", (id,))
         row = c.fetchone()
-        if row and row[0]:
-            path = os.path.join(UPLOAD_FOLDER, row[0])
-            if os.path.exists(path):
-                os.remove(path)
+        if row:
+            for file in row:
+                if file:
+                    path = os.path.join(UPLOAD_FOLDER, file)
+                    if os.path.exists(path):
+                        os.remove(path)
         c.execute("DELETE FROM posts WHERE id=?", (id,))
         conn.commit()
         conn.close()
@@ -184,14 +258,5 @@ def delete_post(id):
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
-# --- Optional: Serve favicon ---
-@app.route("/favicon.ico")
-def favicon():
-    return send_from_directory(os.path.join(app.static_folder), "favicon.ico")
-
-# --- Run server ---
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
-
-
+    app.run(debug=True)
