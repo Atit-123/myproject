@@ -14,12 +14,14 @@
       font-family: "Inter", sans-serif;
       background: #f9fafb;
     }
+    /* Smooth image scaling on hover */
     .post-image {
       transition: transform 0.3s ease;
     }
     .post-card:hover .post-image {
       transform: scale(1.05);
     }
+    /* Filter buttons styling */
     .filter-btn[aria-selected="true"] {
       box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
       font-weight: 700;
@@ -28,133 +30,230 @@
 </head>
 <body class="min-h-screen p-6">
 
-<header
-  class="max-w-6xl mx-auto bg-white shadow-md rounded-lg flex justify-between items-center px-6 py-4 mb-6"
->
-  <h1 class="text-3xl font-extrabold text-gray-900 tracking-wide select-none">
-    📜 Geoclean Feed
-  </h1>
-  <a
-    href="index.html"
-    class="inline-block bg-blue-600 text-white font-semibold px-5 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition"
-    >➕ Upload</a
+  <header
+    class="max-w-6xl mx-auto bg-white shadow-md rounded-lg flex justify-between items-center px-6 py-4 mb-6"
   >
-</header>
-
-<main class="max-w-6xl mx-auto space-y-8">
-
-  <div
-    class="flex justify-center gap-6 mb-6"
-    role="tablist"
-    aria-label="Filter posts"
-  >
-    <button
-      id="btnPending"
-      role="tab"
-      aria-selected="true"
-      class="filter-btn px-7 py-3 rounded-lg bg-yellow-500 text-white font-semibold shadow-md hover:bg-yellow-600 focus:ring-4 focus:ring-yellow-300 transition"
+    <h1 class="text-3xl font-extrabold text-gray-900 tracking-wide select-none">
+      📜 Geoclean Feed
+    </h1>
+    <a
+      href="index.html"
+      class="inline-block bg-blue-600 text-white font-semibold px-5 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition"
     >
-      🟡 Pending
-    </button>
-    <button
-      id="btnCleaned"
-      role="tab"
-      aria-selected="false"
-      class="filter-btn px-7 py-3 rounded-lg bg-green-600 text-white font-semibold shadow-md hover:bg-green-700 focus:ring-4 focus:ring-green-300 transition"
+      ➕ Upload
+    </a>
+  </header>
+
+  <main class="max-w-6xl mx-auto space-y-8">
+
+    <div
+      class="flex justify-center gap-6 mb-6"
+      role="tablist"
+      aria-label="Filter posts"
     >
-      ✅ Cleaned
-    </button>
-  </div>
+      <button
+        id="btnPending"
+        role="tab"
+        aria-selected="true"
+        class="filter-btn px-7 py-3 rounded-lg bg-yellow-500 text-white font-semibold shadow-md hover:bg-yellow-600 focus:ring-4 focus:ring-yellow-300 transition"
+      >
+        🟡 Pending
+      </button>
+      <button
+        id="btnCleaned"
+        role="tab"
+        aria-selected="false"
+        class="filter-btn px-7 py-3 rounded-lg bg-green-600 text-white font-semibold shadow-md hover:bg-green-700 focus:ring-4 focus:ring-green-300 transition"
+      >
+        ✅ Cleaned
+      </button>
+    </div>
 
-  <div id="posts" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-    <p class="text-center text-gray-400 col-span-full">Loading posts...</p>
-  </div>
-</main>
+    <div id="posts" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+      <p class="text-center text-gray-400 col-span-full">Loading posts...</p>
+    </div>
+  </main>
 
-<script>
-  // Use relative URL so it works on Render too
-  const API_BASE = "";
+  <script>
+    const API_BASE = "http://127.0.0.1:5000";
+    let allPosts = [];
+    let currentFilter = "pending";
 
-  let allPosts = [];
-  let currentFilter = "pending";
+    // Format a date nicely
+    function formatDate(dateString) {
+      if (!dateString) return '';
+      try {
+        return new Date(dateString).toLocaleDateString('en-US', {
+          year: 'numeric', month: 'short', day: 'numeric'
+        });
+      } catch {
+        return dateString.split('T')[0]; // fallback
+      }
+    }
 
-  async function loadPosts() {
-    const container = document.getElementById("posts");
-    container.innerHTML = `<p class="text-center text-gray-400 col-span-full">Loading posts...</p>`;
-    try {
-      const res = await fetch(`${API_BASE}/posts`);
-      allPosts = await res.json();
-      if (!allPosts.length) {
-        container.innerHTML = `<p class="text-center text-gray-400 col-span-full">No posts available.</p>`;
+    // Calculate how long cleanup took
+    function calculateTimeDiff(start, end) {
+      if (!start || !end) return null;
+      try {
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        const diffTime = Math.abs(endDate - startDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays === 0) return "in less than a day";
+        return `in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
+      } catch (e) {
+        console.error("Error calculating time difference:", e);
+        return null;
+      }
+    }
+
+    async function loadPosts() {
+      const container = document.getElementById("posts");
+      container.innerHTML = `<p class="text-center text-gray-400 col-span-full">Loading posts...</p>`;
+      try {
+        const res = await fetch(`${API_BASE}/posts`);
+        allPosts = await res.json();
+        if (!allPosts.length) {
+          container.innerHTML = `<p class="text-center text-gray-400 col-span-full">No posts available.</p>`;
+          return;
+        }
+        filterPosts(currentFilter);
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = `<p class="text-center text-red-500 col-span-full">⚠️ Failed to load posts.</p>`;
+      }
+    }
+
+    function filterPosts(status) {
+      currentFilter = status;
+      const container = document.getElementById("posts");
+      container.innerHTML = "";
+
+      // Update filter button states
+      document.getElementById("btnPending").setAttribute("aria-selected", status === "pending");
+      document.getElementById("btnCleaned").setAttribute("aria-selected", status === "complete");
+
+      const filtered = allPosts.filter((p) => p.status === status);
+      if (filtered.length === 0) {
+        container.innerHTML = `<p class="text-center text-gray-400 col-span-full">No ${status} posts.</p>`;
         return;
       }
-      filterPosts(currentFilter);
-    } catch (err) {
-      console.error(err);
-      container.innerHTML = `<p class="text-center text-red-500 col-span-full">⚠️ Failed to load posts.</p>`;
-    }
-  }
 
-  function filterPosts(status) {
-    currentFilter = status;
-    const container = document.getElementById("posts");
-    container.innerHTML = "";
+      filtered.forEach((post) => {
+        const safe = (v) => v ?? "";
+        
+        // Location (with clickable map link if coords exist)
+        const locationText = [safe(post.town), safe(post.state)].filter(Boolean).join(", ");
+        let locationHtml = `📍 ${locationText || 'Location Unknown'}`;
+        if (post.lat && post.lon) {
+          locationHtml = `
+            <a 
+              href="https://www.google.com/maps/search/?api=1&query=${post.lat},${post.lon}" 
+              target="_blank" 
+              class="text-blue-600 hover:text-blue-800 font-semibold"
+              title="View on Google Maps"
+            >
+              📍 ${locationText || 'View on Map'}
+            </a>
+          `;
+        }
 
-    document.getElementById("btnPending").setAttribute("aria-selected", status === "pending");
-    document.getElementById("btnCleaned").setAttribute("aria-selected", status === "complete");
-
-    const filtered = allPosts.filter((p) => p.status === status);
-    if (filtered.length === 0) {
-      container.innerHTML = `<p class="text-center text-gray-400 col-span-full">No ${status} posts.</p>`;
-      return;
-    }
-
-    filtered.forEach((post) => {
-      const safe = (v) => v ?? "";
-      const locationText =
-        [safe(post.town), safe(post.state)]
-          .filter(Boolean)
-          .join(", ") +
-        (post.lat && post.lon ? ` (${post.lat},${post.lon})` : "");
-
-      const card = document.createElement("article");
-      card.className =
-        "post-card bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col";
-
-      card.innerHTML = `
-        <img
-          src="${safe(post.photo_url) || 'https://via.placeholder.com/600x400?text=No+Image'}"
-          alt="Post Image"
-          class="post-image w-full h-48 object-cover"
-          onerror="this.onerror=null;this.src='https://via.placeholder.com/600x400?text=No+Image';"
-        />
-        <div class="p-5 flex flex-col flex-grow">
-          <header class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
-            <div>
-              <h2 class="text-lg font-semibold text-gray-900">${safe(post.name)}</h2>
-              <p class="text-xs text-gray-500 break-all">${safe(post.email)}</p>
+        // Images (before/after for completed, single for pending)
+        let imageHtml = '';
+        const originalImageSrc = post.photo_url ? `${API_BASE}${post.photo_url}` : "https://via.placeholder.com/600x400?text=No+Image";
+        const cleanImageSrc = post.clean_photo ? `${API_BASE}${post.clean_photo}` : null;
+        
+        if (status === 'complete' && cleanImageSrc) {
+          imageHtml = `
+            <div class="grid grid-cols-2 gap-1 h-48 sm:h-56">
+              <div class="overflow-hidden">
+                <img
+                  src="${originalImageSrc}"
+                  alt="Before Cleanup"
+                  class="post-image w-full h-full object-cover"
+                  onerror="this.onerror=null;this.src='https://via.placeholder.com/300x200?text=Before';"
+                />
+                <p class="text-center text-xs text-gray-500 font-bold -mt-3 relative z-10 bg-white/70">BEFORE</p>
+              </div>
+              <div class="overflow-hidden">
+                <img
+                  src="${cleanImageSrc}"
+                  alt="After Cleanup"
+                  class="post-image w-full h-full object-cover"
+                  onerror="this.onerror=null;this.src='https://via.placeholder.com/300x200?text=After';"
+                />
+                <p class="text-center text-xs text-gray-500 font-bold -mt-3 relative z-10 bg-white/70">AFTER</p>
+              </div>
             </div>
-            <p class="text-xs text-gray-500 whitespace-nowrap">
-              📍 ${locationText}
+          `;
+        } else {
+          imageHtml = `
+            <img
+              src="${originalImageSrc}"
+              alt="Post Image"
+              class="post-image w-full h-48 object-cover"
+              onerror="this.onerror=null;this.src='https://via.placeholder.com/600x400?text=No+Image';"
+            />
+          `;
+        }
+
+        // Dates (report + optional completion + duration)
+        const reportDate = post.report_date ? formatDate(post.report_date) : 'Date Unknown';
+        let dateHtml = `<p class="text-gray-700 font-semibold mb-1">📅 Reported: ${reportDate}</p>`;
+        
+        if (status === 'complete' && post.completion_date) {
+          const completionDate = formatDate(post.completion_date);
+          const timeDiff = calculateTimeDiff(post.report_date, post.completion_date);
+          dateHtml += `<p class="text-green-600 font-semibold mb-1">✅ Cleaned: ${completionDate}</p>`;
+          if (timeDiff) {
+            dateHtml += `<p class="text-sm text-green-700 font-bold">⏱️ Took ${timeDiff}</p>`;
+          }
+        }
+        
+        // Build the card
+        const card = document.createElement("article");
+        card.className =
+          "post-card bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col";
+
+        card.innerHTML = `
+          ${imageHtml}
+          <div class="p-5 flex flex-col flex-grow">
+            <header class="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-2">
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900">${safe(post.name)}</h2>
+                <p class="text-xs text-gray-500 break-all">${safe(post.email)}</p>
+              </div>
+              <div class="text-xs text-gray-500 whitespace-nowrap text-right mt-2 sm:mt-0">
+                ${dateHtml}
+              </div>
+            </header>
+            <p class="inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+              status === "pending"
+                ? "bg-yellow-200 text-yellow-800"
+                : "bg-green-200 text-green-800"
+            } self-start mb-3">
+              ${
+                status === "pending"
+                  ? "🟡 Pending"
+                  : "✅ Cleaned"
+              }
             </p>
-          </header>
-          <p class="inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-            status === "pending" ? "bg-yellow-200 text-yellow-800" : "bg-green-200 text-green-800"
-          } self-start mb-3">
-            ${status === "pending" ? "🟡 Pending" : "✅ Cleaned"}
-          </p>
-          <p class="text-gray-700 flex-grow">${safe(post.caption)}</p>
-          <p class="text-xs text-blue-600 mt-4 italic font-medium">🧹 AI Description: ${safe(post.ai_description)}</p>
-        </div>
-      `;
-      container.appendChild(card);
-    });
-  }
+            <p class="text-gray-700 flex-grow">${safe(post.caption)}</p>
+            <p class="text-xs text-blue-600 mt-4 italic font-medium">🧹 AI Description: ${safe(post.ai_description)}</p>
+            <div class="mt-3">
+                ${locationHtml}
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
 
-  document.getElementById("btnPending").onclick = () => filterPosts("pending");
-  document.getElementById("btnCleaned").onclick = () => filterPosts("complete");
+    // Setup filter buttons
+    document.getElementById("btnPending").onclick = () => filterPosts("pending");
+    document.getElementById("btnCleaned").onclick = () => filterPosts("complete");
 
-  loadPosts();
-</script>
+    loadPosts();
+  </script>
 </body>
 </html>
