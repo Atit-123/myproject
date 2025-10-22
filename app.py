@@ -5,8 +5,9 @@ import mimetypes
 from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-from google import generativeai as genai
-from google.generativeai import types
+import google.genai as genai
+from google.genai import types
+
 
 
 # --- Configuration ---
@@ -261,5 +262,6 @@ def uploaded_file(filename):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
