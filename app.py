@@ -5,21 +5,23 @@ import mimetypes
 from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-# 🚨 CORRECTED IMPORTS: Using the new, stable SDK import path (google.genai.Client)
+# 🚨 CORRECTED IMPORTS: Importing the stable 'Client' class directly from the new SDK
 from google.genai import Client
 from google.genai import types
 
 # --- Configuration ---
-# 🚨 SECURITY FIX: Use environment variable, not a hardcoded key.
+# 🚨 SECURITY FIX: Attempt to use environment variable first.
 api_key = os.getenv("GEMINI_API_KEY") 
-# Fallback for development (If key is not set in environment)
+# Fallback for development if environment variable is not set.
+# NOTE: Replace the placeholder key with your actual key for testing, 
+# but rely on environment variables for production.
 if not api_key:
-    # Use the hardcoded key ONLY IF the environment key is missing and issue a WARNING
-    print("WARNING: Using hardcoded API key. Set GEMINI_API_KEY environment variable for production.")
+    # Fallback to the hardcoded key if environment key is missing
+    print("WARNING: GEMINI_API_KEY environment variable not set. Using hardcoded key (security risk).")
     api_key = "AIzaSyDistLgpF0uCaNkLKDqpC4Qpx3TuQFQNGg"
 
 if not api_key:
-    # If the fallback is also missing (i.e., you remove the hardcoded key), raise an exception
+    # If the key is still missing, raise an exception
     raise Exception("Please set GEMINI_API_KEY environment variable")
 
 # 🚨 CORRECTED CLIENT INITIALIZATION: Using the imported Client class
@@ -31,6 +33,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # --- Initialize Flask app ---
 app = Flask(__name__)
+# The template folder is 'templates' by default, which is where Jinja2 looks for HTML files.
 CORS(app, supports_credentials=True, methods=["GET", "POST", "DELETE"])
 
 # --- Initialize DB ---
@@ -65,13 +68,14 @@ def save_binary_file(file_name, data):
         f.write(data)
     return file_name
 
-# --- Serve index.html ---
+# --- Serve Static Pages ---
+
+# 1. Homepage
 @app.route("/")
 def serve_index():
     return render_template("index.html")
 
-# -------------------------------------------------------------
-# --- View Reports (Admin Dashboard - reports.html) ---
+# 2. View Reports (Admin Dashboard)
 @app.route("/reports")
 def view_reports():
     """Fetches all reports to display in the reports.html template."""
@@ -80,39 +84,41 @@ def view_reports():
         conn.row_factory = sqlite3.Row  # To access columns by name
         c = conn.cursor()
         
-        # Select columns for the report table
-        c.execute("SELECT * FROM posts ORDER BY id DESC") # Selecting all columns for completeness
+        # Select all columns for the reports view
+        c.execute("SELECT * FROM posts ORDER BY id DESC")
         
         rows = c.fetchall()
-        # Convert rows to dicts for easier access in Jinja2
         reports_data = [dict(row) for row in rows]
         
         conn.close()
 
+        # NOTE: Assumes you have saved your template as "reports.html" inside the 'templates' folder.
         return render_template("reports.html", reports=reports_data)
         
     except Exception as e:
         return f"<h1>Error loading reports</h1><p>{str(e)}</p>", 500
-# -------------------------------------------------------------
 
-# -------------------------------------------------------------
-# 🆕 ADDED ROUTE: For serving a general feed of posts (e.g., feed.html)
+# 3. Feed Page (Community View)
+# 🚨 NEW ROUTE ADDED to fix the 404 error from the log
 @app.route("/feed")
 def serve_feed():
-    """Serves the feed.html template (where client-side JS fetches data from /posts)."""
+    """Serves the feed.html template."""
     return render_template("feed.html")
 
-# 🆕 ADDED ROUTE: For serving a management page (e.g., manage.html)
+# 4. Management Page (Admin/Staff interface)
+# 🚨 NEW ROUTE ADDED to fix the 404 error from the log
 @app.route("/manage")
 def serve_manage():
-    """Serves the manage.html template (for an administrative view)."""
+    """Serves the manage.html template."""
     return render_template("manage.html")
-# -------------------------------------------------------------
+
+# --- API Endpoints ---
 
 # --- Upload endpoint ---
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
+        # Get form data
         name = request.form.get("name")
         email = request.form.get("email")
         caption = request.form.get("caption")
@@ -120,7 +126,7 @@ def upload_file():
         area = request.form.get("area")
         state = request.form.get("state")
         
-        # Safely convert latitude and longitude
+        # Safely get coordinates
         lat = float(request.form.get("lat", 0))
         lon = float(request.form.get("lon", 0))
 
@@ -134,10 +140,11 @@ def upload_file():
             path = os.path.join(UPLOAD_FOLDER, filename)
             photo.save(path)
 
-            # --- AI Text Analysis ---
+            # Read image for AI processing
             with open(path, "rb") as f:
                 image_bytes = f.read()
 
+            # --- AI Text Analysis (Waste Detection) ---
             try:
                 response = client.models.generate_content(
                     model="gemini-2.5-flash",
@@ -153,27 +160,26 @@ def upload_file():
                         )
                     ],
                 )
-                ai_description = getattr(response, "text", "No description")
+                ai_description = getattr(response, "text", "No description").strip()
             except Exception as e:
-                print("AI analysis error:", e)
+                print(f"AI analysis error: {e}")
                 ai_description = "AI description not available"
 
             # --- AI Image Generation (Clean version) ---
             clean_filename = None
             try:
-                # Use response_mime_type="image/png" for explicit image output format
+                # Configure for image output
                 generate_config = types.GenerateContentConfig(
                     response_mime_type="image/png"
                 )
                 gen_response = client.models.generate_content(
-                    # FIX: Corrected model name from "gemini-2.5-flash-image" to "gemini-2.5-flash"
                     model="gemini-2.5-flash",
                     contents=[
                         types.Content(
                             role="user",
                             parts=[
                                 types.Part.from_text(
-                                    text="Create a clean version of this place without any garbage. Keep the composition and lighting the same."
+                                    text="Create a clean version of this place without any visible waste or garbage. Maintain the original composition and lighting."
                                 ),
                                 types.Part.from_bytes(data=image_bytes, mime_type=photo.mimetype),
                             ],
@@ -181,8 +187,8 @@ def upload_file():
                     ],
                     config=generate_config,
                 )
-                
-                # Check for image data in the response
+
+                # Extract and save the generated image data
                 part = gen_response.candidates[0].content.parts[0]
                 if getattr(part, "inline_data", None) and part.inline_data.data:
                     clean_filename = f"clean_{uuid.uuid4().hex}.png"
@@ -190,7 +196,7 @@ def upload_file():
                     save_binary_file(clean_path, part.inline_data.data)
 
             except Exception as e:
-                print("AI image gen error:", e)
+                print(f"AI image gen error: {e}")
 
             # --- Save to Database ---
             conn = sqlite3.connect(DATABASE)
@@ -211,9 +217,11 @@ def upload_file():
         return jsonify({"message": "Upload successful!", "results": results})
 
     except Exception as e:
+        # Log the full exception for debugging
+        print(f"Upload error: {e}")
         return jsonify({"error": str(e)}), 500
 
-# --- Get posts (API endpoint) ---
+# --- Get posts (API endpoint for frontend feed) ---
 @app.route("/posts", methods=["GET"])
 def get_posts():
     try:
@@ -279,6 +287,7 @@ def delete_post(id):
 # --- Serve uploaded images ---
 @app.route("/uploads/<filename>")
 def uploaded_file(filename):
+    # This serves files from the 'uploads' directory
     return send_from_directory(UPLOAD_FOLDER, filename)
 
 if __name__ == "__main__":
