@@ -6,4 +6,5 @@ click==8.1.7
 MarkupSafe==2.1.5
 gunicorn==22.0.0
 flask-cors==4.0.0
-google-generativeai==0.8.5
+google-genai==1.0.0
+
