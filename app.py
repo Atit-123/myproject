@@ -24,7 +24,14 @@ UPLOAD_FOLDER = "uploads"
 DATABASE = "geoclean.db"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# --- Serve the Management Page ---
+# NOTE: If your /reports route already serves reports.html, you might only need this if 
+# you have a separate management page named manage.html.
 
+@app.route("/manage")
+def serve_manage():
+    """Serves the manage.html template (for admins to view/update status)."""
+    return render_template("manage.html")
 # --- Initialize Flask app ---
 app = Flask(__name__)
 CORS(app, supports_credentials=True, methods=["GET", "POST", "DELETE"])
@@ -262,6 +269,7 @@ def uploaded_file(filename):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
