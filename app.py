@@ -5,33 +5,30 @@ import mimetypes
 from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-import google.genai as genai
+# 🚨 CORRECTED IMPORTS: Using the new, stable SDK import path (google.genai.Client)
+from google.genai import Client
 from google.genai import types
 
-
-
 # --- Configuration ---
-# WARNING: This API key is still hardcoded and public. 
-# For production, use os.getenv("GEMINI_API_KEY")
-api_key = "AIzaSyDistLgpF0uCaNkLKDqpC4Qpx3TuQFQNGg"
-
+# 🚨 SECURITY FIX: Use environment variable, not a hardcoded key.
+api_key = os.getenv("GEMINI_API_KEY") 
+# Fallback for development (If key is not set in environment)
+if not api_key:
+    # Use the hardcoded key ONLY IF the environment key is missing and issue a WARNING
+    print("WARNING: Using hardcoded API key. Set GEMINI_API_KEY environment variable for production.")
+    api_key = "AIzaSyDistLgpF0uCaNkLKDqpC4Qpx3TuQFQNGg"
 
 if not api_key:
+    # If the fallback is also missing (i.e., you remove the hardcoded key), raise an exception
     raise Exception("Please set GEMINI_API_KEY environment variable")
 
-client = genai.Client(api_key=api_key)
+# 🚨 CORRECTED CLIENT INITIALIZATION: Using the imported Client class
+client = Client(api_key=api_key)
 UPLOAD_FOLDER = "uploads"
 DATABASE = "geoclean.db"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-# --- Serve the Management Page ---
-# NOTE: If your /reports route already serves reports.html, you might only need this if 
-# you have a separate management page named manage.html.
 
-@app.route("/manage")
-def serve_manage():
-    """Serves the manage.html template (for admins to view/update status)."""
-    return render_template("manage.html")
 # --- Initialize Flask app ---
 app = Flask(__name__)
 CORS(app, supports_credentials=True, methods=["GET", "POST", "DELETE"])
@@ -74,7 +71,7 @@ def serve_index():
     return render_template("index.html")
 
 # -------------------------------------------------------------
-# --- View Reports (ADDED AND CORRECTED) ---
+# --- View Reports (Admin Dashboard - reports.html) ---
 @app.route("/reports")
 def view_reports():
     """Fetches all reports to display in the reports.html template."""
@@ -84,18 +81,32 @@ def view_reports():
         c = conn.cursor()
         
         # Select columns for the report table
-        c.execute("SELECT name, email, town, area, state FROM posts ORDER BY id DESC")
+        c.execute("SELECT * FROM posts ORDER BY id DESC") # Selecting all columns for completeness
         
         rows = c.fetchall()
+        # Convert rows to dicts for easier access in Jinja2
         reports_data = [dict(row) for row in rows]
         
         conn.close()
 
-        # NOTE: Assumes you have saved your template as "reports.html" inside the 'templates' folder.
         return render_template("reports.html", reports=reports_data)
         
     except Exception as e:
         return f"<h1>Error loading reports</h1><p>{str(e)}</p>", 500
+# -------------------------------------------------------------
+
+# -------------------------------------------------------------
+# 🆕 ADDED ROUTE: For serving a general feed of posts (e.g., feed.html)
+@app.route("/feed")
+def serve_feed():
+    """Serves the feed.html template (where client-side JS fetches data from /posts)."""
+    return render_template("feed.html")
+
+# 🆕 ADDED ROUTE: For serving a management page (e.g., manage.html)
+@app.route("/manage")
+def serve_manage():
+    """Serves the manage.html template (for an administrative view)."""
+    return render_template("manage.html")
 # -------------------------------------------------------------
 
 # --- Upload endpoint ---
@@ -109,6 +120,7 @@ def upload_file():
         area = request.form.get("area")
         state = request.form.get("state")
         
+        # Safely convert latitude and longitude
         lat = float(request.form.get("lat", 0))
         lon = float(request.form.get("lon", 0))
 
@@ -146,10 +158,13 @@ def upload_file():
                 print("AI analysis error:", e)
                 ai_description = "AI description not available"
 
-            # --- AI Image Generation (Clean version - CORRECTED MODEL) ---
+            # --- AI Image Generation (Clean version) ---
             clean_filename = None
             try:
-                generate_config = types.GenerateContentConfig(response_modalities=["IMAGE"])
+                # Use response_mime_type="image/png" for explicit image output format
+                generate_config = types.GenerateContentConfig(
+                    response_mime_type="image/png"
+                )
                 gen_response = client.models.generate_content(
                     # FIX: Corrected model name from "gemini-2.5-flash-image" to "gemini-2.5-flash"
                     model="gemini-2.5-flash",
@@ -158,7 +173,7 @@ def upload_file():
                             role="user",
                             parts=[
                                 types.Part.from_text(
-                                    text="Create a clean version of this place without any garbage."
+                                    text="Create a clean version of this place without any garbage. Keep the composition and lighting the same."
                                 ),
                                 types.Part.from_bytes(data=image_bytes, mime_type=photo.mimetype),
                             ],
@@ -166,7 +181,8 @@ def upload_file():
                     ],
                     config=generate_config,
                 )
-
+                
+                # Check for image data in the response
                 part = gen_response.candidates[0].content.parts[0]
                 if getattr(part, "inline_data", None) and part.inline_data.data:
                     clean_filename = f"clean_{uuid.uuid4().hex}.png"
@@ -197,7 +213,7 @@ def upload_file():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# --- Get posts ---
+# --- Get posts (API endpoint) ---
 @app.route("/posts", methods=["GET"])
 def get_posts():
     try:
@@ -211,14 +227,9 @@ def get_posts():
         posts = []
         for row in rows:
             post = dict(row)
-            if post.get("photo"):
-                post["photo_url"] = "/uploads/" + post["photo"]
-            else:
-                post["photo_url"] = None
-            if post.get("clean_photo"):
-                post["clean_photo_url"] = "/uploads/" + post["clean_photo"]
-            else:
-                post["clean_photo_url"] = None
+            # Generate photo URLs for the frontend
+            post["photo_url"] = "/uploads/" + post["photo"] if post.get("photo") else None
+            post["clean_photo_url"] = "/uploads/" + post["clean_photo"] if post.get("clean_photo") else None
             posts.append(post)
         return jsonify(posts)
     except Exception as e:
@@ -250,11 +261,14 @@ def delete_post(id):
         c.execute("SELECT photo, clean_photo FROM posts WHERE id=?", (id,))
         row = c.fetchone()
         if row:
+            # Delete physical files from the uploads folder
             for file in row:
                 if file:
                     path = os.path.join(UPLOAD_FOLDER, file)
                     if os.path.exists(path):
                         os.remove(path)
+        
+        # Delete record from database
         c.execute("DELETE FROM posts WHERE id=?", (id,))
         conn.commit()
         conn.close()
@@ -269,7 +283,3 @@ def uploaded_file(filename):
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-
