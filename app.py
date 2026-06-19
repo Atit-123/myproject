@@ -18,7 +18,7 @@ api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     # Fallback to the hardcoded key if environment key is missing
     print("WARNING: GEMINI_API_KEY environment variable not set. Using hardcoded key (security risk).")
-    api_key = "AIzaSyDistLgpF0uCaNkLKDqpC4Qpx3TuQFQNGg"
+    api_key = "AQ.Ab8RN6JYtc4rh0q0MG03TvmmvCcY5CEm68Qhe1L8PMYz2j4jIg"
 
 if not api_key:
     # If the key is still missing, raise an exception
